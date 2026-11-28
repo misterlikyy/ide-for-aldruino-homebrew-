@@ -5,13 +5,26 @@ const { Y, REMOTE, LOCAL } = model;
 const encode = bytes => { let raw = ''; for (const byte of bytes) raw += String.fromCharCode(byte); return btoa(raw); };
 const decode = text => Uint8Array.from(atob(text), c => c.charCodeAt(0));
 function invitation(server, room, token) { return 'IDE1.' + btoa(JSON.stringify({ server: serverUrl(server), room, token })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function shortInvitation(token) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw Error('A full guest credential is required to create a short invitation.');
+  return 'IDE2.' + token.slice(0, 22);
+}
 function parseInvitation(value) {
   try {
-    if (typeof value !== 'string' || value.length > 3000 || !value.trim().startsWith('IDE1.')) throw Error();
+    if (typeof value !== 'string' || value.length > 3000) throw Error();
+    const parts = value.trim().split(/\s+/);
+    if (parts.length <= 2) {
+      const code = parts.find(part => /^(?:IDE2\.)?[A-Za-z0-9_-]{22}$/.test(part));
+      if (code) {
+        const address = parts.find(part => part !== code);
+        return { shortCode: code.replace(/^IDE2\./, ''), ...(address ? { server: serverUrl(address) } : {}) };
+      }
+    }
+    if (!value.trim().startsWith('IDE1.')) throw Error();
     const data = JSON.parse(atob(value.trim().slice(5).replace(/-/g, '+').replace(/_/g, '/')));
     if (!/^[a-f0-9-]{36}$/.test(data.room) || !/^[A-Za-z0-9_-]{43}$/.test(data.token)) throw Error();
     return { server: serverUrl(data.server), room: data.room, token: data.token };
-  } catch { throw Error('Paste the complete IDE1 invitation code.'); }
+  } catch { throw Error('Paste a complete short invitation or an older IDE1 invitation.'); }
 }
 class Session {
   constructor(options) {
@@ -44,7 +57,7 @@ class Session {
         if (this.composing && ['welcome', 'update', 'rejected'].includes(message.t)) { this.deferred.push({ socket, data: event.data }); return; }
         if (message.t === 'welcome') {
           if (!['owner', 'editor', 'viewer'].includes(message.role)) throw Error('Unknown session role.');
-          clearTimeout(timeout); this.id = message.id; this.role = message.role; this.ready = true; this.delay = 500;
+          clearTimeout(timeout); this.id = message.id; this.role = message.role; this.shortInvitations = message.shortInvitations === true; this.ready = true; this.delay = 500;
           const selection = this.options.beforeRemote?.();
           if (!this.doc) this.setDocument(message.state); else Y.applyUpdate(this.doc, decode(message.state), REMOTE);
           this.options.onProject?.(model.snapshot(this.doc), selection); this.options.onReady?.();
@@ -56,7 +69,7 @@ class Session {
           this.options.onProject?.(model.snapshot(this.doc), selection); this.options.onPeople?.(this.people);
         } else if (message.t === 'saved') { this.awaiting.delete(message.seq); this.notify(this.pending.length || this.awaiting.size ? 'saving' : 'connected'); }
         else if (message.t === 'people') { this.people = message.people; this.options.onPeople?.(message.people); }
-        else if (message.t === 'invites') this.options.onInvites?.(message.keys);
+        else if (message.t === 'invites') { this.shortInvitations = message.shortInvitations === true; this.options.onInvites?.(message.keys); }
         else if (message.t === 'error') this.options.onError?.(message.message);
         else if (message.t === 'rejected') {
           this.options.beforeReject?.(); this.pending = []; this.awaiting.clear(); this.setDocument(message.state);
@@ -84,4 +97,4 @@ class Session {
   redo() { if (this.role !== 'viewer') this.undoManager?.redo(); }
   close() { this.closed = true; this.ready = false; clearTimeout(this.reconnectTimer); clearTimeout(this.flushTimer); this.socket?.close(); this.undoManager?.destroy(); this.doc?.destroy(); }
 }
-module.exports = { Session, invitation, parseInvitation, serverUrl, addressKind };
+module.exports = { Session, invitation, shortInvitation, parseInvitation, serverUrl, addressKind };

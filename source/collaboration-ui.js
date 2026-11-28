@@ -35,7 +35,7 @@
       <label for="collabKey">Server creation key (from server setup)</label><input id="collabKey" type="password" autocomplete="off" placeholder="Paste the private key from server setup">
       <div class="collab-actions"><button id="collabCreate" class="primary">Share this project</button></div>
       </div><div id="collabJoinSection" hidden>
-      <h3>Join a session</h3><label for="collabInvite">Invitation code</label><textarea id="collabInvite" spellcheck="false" placeholder="IDE1.…"></textarea>
+      <h3>Join a session</h3><label for="collabInvite">Invitation code</label><textarea id="collabInvite" spellcheck="false" placeholder="Paste a short IDE2 code, address + code, or an older IDE1 invitation"></textarea>
       <div id="collabJoinDetails" hidden><label for="collabJoinServer">Connect to this server</label><input id="collabJoinServer" spellcheck="false">
       <p id="collabJoinHint" class="collab-note collab-warning"></p><label id="collabSameLabel"><input type="checkbox" id="collabSamePC"> I am joining on the PC that runs the server</label><button id="collabJoinCheck">Check invitation server</button></div>
       <div class="collab-actions"><button id="collabJoin">Join session</button><button id="collabRecover">Open recovered local draft</button></div>
@@ -47,8 +47,10 @@
       <ul id="collabPeople" aria-label="Session participants"></ul>
       <div id="collabOwner" hidden>
         <p id="collabInviteHint" class="collab-note"></p>
-        <label for="collabEditorCode">Editor invitation — can change code</label><textarea id="collabEditorCode" readonly aria-label="Editor invitation"></textarea><button data-copy="collabEditorCode">Copy editor invitation</button>
-        <label for="collabViewerCode">Viewer invitation — can read code</label><textarea id="collabViewerCode" readonly aria-label="Viewer invitation"></textarea><button data-copy="collabViewerCode">Copy viewer invitation</button>
+        <label for="collabShareServer">Server address — included when you copy a short invitation</label><input id="collabShareServer" readonly><button data-copy="collabShareServer">Copy server address</button>
+        <label for="collabEditorCode">Editor invitation — can change code</label><input id="collabEditorCode" readonly aria-label="Editor invitation"><button data-copy="collabEditorCode">Copy editor invitation</button>
+        <label for="collabViewerCode">Viewer invitation — can read code</label><input id="collabViewerCode" readonly aria-label="Viewer invitation"><button data-copy="collabViewerCode">Copy viewer invitation</button>
+        <details><summary>Full invitations for older apps</summary><label for="collabFullEditor">Full editor invitation</label><textarea id="collabFullEditor" readonly></textarea><button data-copy="collabFullEditor">Copy full editor invitation</button><label for="collabFullViewer">Full viewer invitation</label><textarea id="collabFullViewer" readonly></textarea><button data-copy="collabFullViewer">Copy full viewer invitation</button></details>
         <details><summary>Owner recovery code — keep private</summary><p class="collab-note">Keep this code to reopen the session as its owner. Credentials are not stored in your sketch or project file.</p><textarea id="collabOwnerCode" readonly aria-label="Owner recovery invitation"></textarea><button data-copy="collabOwnerCode">Copy owner recovery code</button></details>
       </div>
       <div class="collab-actions"><button id="collabRotate" hidden>Replace guest invitations</button><button id="collabEnd" hidden>End session for everyone</button><button id="collabLeave">Leave session</button></div>
@@ -85,7 +87,9 @@
     $('#collabOwner').hidden = !owner; $('#collabRotate').hidden = !owner; $('#collabEnd').hidden = !owner;
     $('#collabRotate').disabled = $('#collabEnd').disabled = !session?.ready;
     $('#collabInviteHint').textContent = (owner && !keys.editor ? 'You reopened this session with its owner code. Use Replace guest invitations to issue new guest codes.' : 'Share only the invitation for the access you want to grant.') + (session && IDECollab.addressKind(session.server) === 'computer' ? ' These invitations use localhost and work on this PC only. For another PC, enter the host’s LAN address in the invitation server field when joining, or create a session using that LAN address.' : '');
+    if (owner && keys.editor) $('#collabInviteHint').textContent += session.shortInvitations ? ' Guest codes are 27 characters. Copy includes the server address, so your guest can paste everything at once.' : ' Short codes need an updated server and a new session, or Replace guest invitations on an updated server. Full invitations still work.';
     if (!session) { $('#shareProject').textContent = 'Share project'; overlay.replaceChildren(); return; }
+    $('#collabShareServer').value = session.server;
     const labels = { connecting: 'Connecting…', reconnecting: 'Reconnecting…', connected: 'Connected · saved', saving: 'Saving changes…', offline: 'Offline · local draft', ended: 'Session ended' };
     $('#collabState').textContent = labels[session.status] || session.status;
     $('#shareProject').textContent = session.status === 'connected' ? 'Sharing · ' + session.role : 'Sharing · ' + session.status;
@@ -99,8 +103,9 @@
       $('#collabPeople').appendChild(row);
     }
     for (const [role, target] of [['editor', 'collabEditorCode'], ['viewer', 'collabViewerCode'], ['owner', 'collabOwnerCode']]) {
-      $( '#' + target).value = keys[role] ? IDECollab.invitation(session.server, session.room, keys[role]) : '';
+      $( '#' + target).value = keys[role] ? (role !== 'owner' && session.shortInvitations ? IDECollab.shortInvitation(keys[role]) : IDECollab.invitation(session.server, session.room, keys[role])) : '';
     }
+    for (const [role, target] of [['editor', 'collabFullEditor'], ['viewer', 'collabFullViewer']]) $('#' + target).value = keys[role] ? IDECollab.invitation(session.server, session.room, keys[role]) : '';
     renderCursors();
   }
   function renderCursors() {
@@ -148,7 +153,7 @@
     keys = ownerKeys; people = []; error(''); statusMessage = '';
     session = new IDECollab.Session({ ...invite, name: $('#collabName').value,
       beforeRemote: cursor, onProject: apply, beforeReject: backup,
-      onReady: () => render(), onPeople: value => { people = value; render(); },
+      onReady: () => { if (isJoin && session.role === 'owner') keys.owner = invite.token; try { localStorage.setItem('ide.collab-server', session.server); } catch {} render(); }, onPeople: value => { people = value; render(); },
       onInvites: value => { keys = { ...keys, ...value }; render(); },
       onStatus: (status, message) => { statusMessage = message || ''; render(); },
       onError: error, onEnded: () => { backup(); const ended = statusMessage; leave(); error(ended); }
@@ -161,7 +166,7 @@
   }
   function leave() {
     backup(); session?.close(); session = null; keys = {}; people = []; clearTimeout(presenceTimer); render(); saveProject();
-    $('#collabKey').value = ''; $('#collabInvite').value = ''; for (const id of ['collabOwnerCode', 'collabEditorCode', 'collabViewerCode']) $('#' + id).value = '';
+    $('#collabKey').value = ''; $('#collabInvite').value = ''; for (const id of ['collabOwnerCode', 'collabEditorCode', 'collabViewerCode', 'collabFullEditor', 'collabFullViewer']) $('#' + id).value = '';
   }
   let working = false, previewCode = '';
   for (const [id, host] of [['collabCreateTab', true], ['collabJoinTab', false]]) $('#' + id).onclick = () => {
@@ -190,12 +195,13 @@
   function previewInvitation() {
     try {
       const code = $('#collabInvite').value.trim(), invite = IDECollab.parseInvitation(code);
-      if (code !== previewCode) { previewCode = code; $('#collabJoinServer').value = invite.server; $('#collabSamePC').checked = false; }
+      if (code !== previewCode) { previewCode = code; $('#collabJoinServer').value = invite.server || localStorage.getItem('ide.collab-server') || ''; $('#collabSamePC').checked = false; }
       $('#collabJoinDetails').hidden = false; joinHint(); return invite;
     } catch { $('#collabJoinDetails').hidden = true; return null; }
   }
   function joiningInvitation() {
-    const invite = previewInvitation(); if (!invite) throw Error('Paste a complete IDE1 invitation from the host.');
+    const invite = previewInvitation(); if (!invite) throw Error('Paste a complete short invitation or an older IDE1 invitation from the host.');
+    if (!$('#collabJoinServer').value.trim()) throw Error('Enter the server address from your host. Copy invitation includes both the address and short code.');
     invite.server = IDECollab.serverUrl($('#collabJoinServer').value);
     if (IDECollab.addressKind(invite.server) === 'computer' && !$('#collabSamePC').checked) throw Error('This invitation uses localhost. Enter the host’s LAN address above, or confirm that the server runs on this PC.');
     return invite;
@@ -232,9 +238,14 @@
     start({ server: address, room: result.room, token: result.keys.owner }, result.keys);
   });
   $('#collabJoin').onclick = () => action(async () => {
-    const invite = joiningInvitation(); await checkConnection(invite.server);
+    let invite = joiningInvitation(); await checkConnection(invite.server);
+    if (invite.shortCode) {
+      const result = await window.uno.resolveInvitation(invite.server, invite.shortCode);
+      if (!result.ok) throw Error(result.error);
+      invite = { server: result.server, room: result.room, token: result.token };
+    }
     if (!(await askConfirm('Join this shared project on ' + invite.server + '? Your current workspace will be backed up, then the session code will open here.', 'Join session'))) return;
-    rememberDraft(); start(invite, { owner: invite.token }, true); $('#collabInvite').value = '';
+    rememberDraft(); start(invite, {}, true); $('#collabInvite').value = '';
   });
   $('#collabRecover').onclick = () => {
     try { const draft = JSON.parse(localStorage.getItem('ide.collab-recovery.' + WS)); if (!draft) throw Error('No recovered draft is available.'); replaceWorkspace(draft, draft.projectPath); dialog.close(); }
@@ -245,7 +256,12 @@
   $('#collabEnd').onclick = async () => { if (await askConfirm('End this session for everyone and delete its server copy? Each participant keeps their local draft.', 'End session')) session?.send({ t: 'end' }); };
   dialog.querySelectorAll('[data-copy]').forEach(button => { button.onclick = async () => {
     const field = $('#' + button.dataset.copy);
-    try { await navigator.clipboard.writeText(field.value); flash('Invitation copied'); } catch { field.focus(); field.select(); error('Press Ctrl+C to copy the selected invitation.'); }
+    const value = field.value.startsWith('IDE2.') ? session.server + '\n' + field.value : field.value;
+    try {
+      if (window.uno?.copyText) { const result = await window.uno.copyText(value); if (!result.ok) throw Error(result.error); }
+      else await navigator.clipboard.writeText(value);
+      flash('Copied');
+    } catch { field.focus(); field.select(); error('Press Ctrl+C to copy the selected code. Send the server address too.'); }
   }; });
   $('#shareProject').onclick = () => { render(); error(''); if (!dialog.open) dialog.showModal(); };
   $('#collabClose').onclick = () => dialog.close();

@@ -2,13 +2,15 @@ IDE-beta — Windows and Linux
 
 Extract the ZIP and run IDE-beta.exe.
 
-Beta 13 simplifies sharing: choose same-network, same-PC or HTTPS internet mode, check the server in the app, and correct the server address on older invitations without changing their room/access code. Localhost invitations clearly explain that they work only on the PC using them. For sharing across PCs, use the host's LAN address in the host app too. The server package now has a friendly homepage, a server.sh menu, a readiness check and CONNECT.txt with public connection details. New scripts work with folder paths containing spaces; older Mint packages can be upgraded in their existing folder while keeping .env and Docker volumes.
+Beta 14 adds 27-character guest invitations. Copy invitation includes the server address and short code together; guests can paste both at once. The app also accepts a code alone with a server address, and remembers the last joined server. Full IDE1 invitations and private owner recovery codes remain available. Short invitations require the updated server package: replace its files in the same server folder, keep .env, and rerun setup. For an existing session, its owner can replace guest invitations to issue short codes, which revokes the previous codes and disconnects guests.
+
+Sharing includes same-network, same-PC and HTTPS internet choices, in-app server checks, and editable addresses for old invitations. The server package includes a friendly homepage, server.sh menu, readiness check and CONNECT.txt with public connection details. Keep the existing server folder, .env and Docker volumes when updating.
 
 The Linux app uses native serial monitoring and retries the uploaded board's connection while it restarts. The Dashboard marks retained readings when disconnected.
 
 Public server status: there is no public online collaboration server operated by this project. Collaboration uses your own local or self-hosted server.
 
-Live collaboration: use Share project to create a private code session or join with an IDE1 invitation. The IDE-beta-collaboration-server-linux.zip setup supports Ubuntu, Debian, Fedora and Linux Mint. Extract it and run bash setup-server.sh. Option 1 (the default) is for PCs on the same local network and does not configure internet access. Optional internet mode needs your own domain, DNS and router setup. The original Mint ZIP and setup-mint.sh remain compatibility shortcuts.
+Live collaboration: use Share project to create a private code session or join with a short IDE2 code or full IDE1 invitation. The IDE-beta-collaboration-server-linux.zip setup supports Ubuntu, Debian, Fedora and Linux Mint. Extract it and run bash setup-server.sh. Option 1 (the default) is for PCs on the same local network and does not configure internet access. Optional internet mode needs your own domain, DNS and router setup. The original Mint ZIP and setup-mint.sh remain compatibility shortcuts.
 
 To manage your server, open a terminal in its extracted folder and run bash server.sh for a menu, or bash server.sh status for connection addresses. Setup saves an absolute status command in CONNECT.txt. Older Mint packages without the helper can use sudo docker compose ps from their compose.yaml folder. Keep using the same folder and .env when updating so Docker retains your existing shared projects. Guest PCs can test access by opening the host's LAN address followed by /health in a browser.
 

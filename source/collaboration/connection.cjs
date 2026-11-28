@@ -23,4 +23,17 @@ async function checkServer(value, request = fetch, timeout = 6000) {
   } catch { throw Error('This address did not return a compatible IDE-beta server health response. Check ' + address + '/health and the server logs.'); }
   return { ok: true, address, kind: addressKind(address) };
 }
-module.exports = { addressKind, checkServer };
+async function resolveInvitation(value, code, request = fetch) {
+  const address = serverUrl(value);
+  if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(code)) throw Error('Paste a complete short invitation.');
+  const response = await request(address + '/api/invitations/resolve', {
+    method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: AbortSignal.timeout(6000)
+  });
+  if (response.status === 404) throw Error('This server needs an update for short invitations. Use a full IDE1 invitation, or update the server ZIP in its existing folder while keeping .env.');
+  const text = await response.text(); if (text.length > 20000) throw Error('The server returned an invalid invitation response.');
+  const result = JSON.parse(text);
+  if (!response.ok) throw Error(typeof result.error === 'string' ? result.error : 'Could not check this invitation.');
+  if (result.protocol !== 1 || !/^[a-f0-9-]{36}$/.test(result.room)) throw Error('The server returned an invalid invitation response.');
+  return { server: address, room: result.room, token: code };
+}
+module.exports = { addressKind, checkServer, resolveInvitation };

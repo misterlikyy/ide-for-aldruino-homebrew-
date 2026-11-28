@@ -12,11 +12,15 @@
 4. Choose **Check server**. When it says **Server reachable**, enter your display name and private creation key, then choose **Share this project**.
 5. Copy an **editor** or **viewer** invitation and send it to your collaborator.
 
+Updated servers issue **27-character guest codes** (`IDE2.…`). **Copy invitation** includes the server address on the line above the code, so the guest can paste both at once. If sending just the code, also send the server address. Owner recovery codes stay full length. **Full invitations for older apps** remains available.
+
+If you still see long codes, update the server ZIP in its existing folder while keeping `.env`, then rerun setup. For an existing session, its owner can use **Replace guest invitations** to issue short codes; this disconnects guests and invalidates their old codes. New sessions on an updated server use short codes automatically. Older servers and `IDE1` invitations still work with the updated app.
+
 The creation key is checked when creating the session. Guests do not need it. To find it again on the server, run `bash server.sh key` in its folder.
 
 ## Guest: join the project
 
-1. Open **Share project → Join a project**, enter a display name and paste the invitation under **Join a session**.
+1. Open **Share project → Join a project**, enter a display name and paste the invitation under **Join a session**. You can paste the address and short code together, or paste the code alone and enter the host’s address below. The app remembers the last server you joined.
 2. Check **Connect to this server**. It should show the host’s LAN address.
 3. Choose **Check invitation server**, then **Join session**. The app backs up your current workspace before opening the shared code.
 

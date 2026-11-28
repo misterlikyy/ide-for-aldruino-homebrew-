@@ -15,10 +15,13 @@ const docker = args => execFileSync('docker', args, { encoding: 'utf8', stdio: [
     const response = await fetch(address + '/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ name: 'Container check', files: [{ name: 'main.ino', text: 'void setup() {}\nvoid loop() {}' }] }) });
     if (!response.ok) throw Error('The production container could not create a session');
     const room = await response.json();
+    const shortCode = room.keys.viewer.slice(0, 22);
+    const resolved = await fetch(address + '/api/invitations/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: shortCode }) });
+    if (!resolved.ok || (await resolved.json()).room !== room.room) throw Error('The production container could not resolve a short invitation');
     await new Promise((resolve, reject) => {
       const socket = new WebSocket(address.replace('http:', 'ws:') + '/sync');
       const timeout = setTimeout(() => { socket.terminate(); reject(Error('Container WebSocket timed out')); }, 10000);
-      socket.on('open', () => socket.send(JSON.stringify({ t: 'auth', room: room.room, token: room.keys.viewer, name: 'Check' })));
+      socket.on('open', () => socket.send(JSON.stringify({ t: 'auth', room: room.room, token: shortCode, name: 'Check' })));
       socket.on('error', reject);
       socket.on('message', raw => { if (JSON.parse(raw).t === 'welcome') { clearTimeout(timeout); socket.close(); resolve(); } });
     });

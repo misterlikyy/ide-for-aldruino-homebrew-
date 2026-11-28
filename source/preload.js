@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('uno', {
   onNativeSerial: fn => { const listener = (_, message) => fn(message); ipcRenderer.on('serial:native:data', listener); return () => ipcRenderer.removeListener('serial:native:data', listener); },
   createSession: (server, project, key) => ipcRenderer.invoke('collab:create', server, project, key),
   checkServer: server => ipcRenderer.invoke('collab:check', server),
+  resolveInvitation: (server, code) => ipcRenderer.invoke('collab:resolve', server, code),
+  copyText: text => ipcRenderer.invoke('clipboard:write', text),
   cliCheck: () => ipcRenderer.invoke('cli:check'),
   installCore: () => ipcRenderer.invoke('cli:installCore'),
   compile: (files, fqbn) => ipcRenderer.invoke('cli:compile', files, fqbn),

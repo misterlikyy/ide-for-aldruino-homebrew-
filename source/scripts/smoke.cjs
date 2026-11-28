@@ -114,7 +114,12 @@ app.whenReady().then(async () => {
     `);
     await until(editor, 'ideCollaboration.session?.status === "connected"');
     const editorCode = await editor.webContents.executeJavaScript("$('#collabEditorCode').value");
-    const viewerCode = await editor.webContents.executeJavaScript("$('#collabViewerCode').value");
+    if (!/^IDE2\.[A-Za-z0-9_-]{22}$/.test(editorCode)) throw Error('Guest invitation is not short');
+    let copied = '';
+    ipcMain.removeHandler('clipboard:write'); ipcMain.handle('clipboard:write', (_, text) => { copied = text; return { ok: true }; });
+    await editor.webContents.executeJavaScript("document.querySelector('[data-copy=collabEditorCode]').onclick()");
+    if (copied !== address.replace('127.0.0.0', '127.0.0.1') + '\n' + editorCode) throw Error('Copy invitation did not include the short code and address');
+    const viewerCode = await editor.webContents.executeJavaScript("$('#collabFullViewer').value");
     async function joinWindow(code, name) {
       const before = new Set(BrowserWindow.getAllWindows());
       await editor.webContents.executeJavaScript('window.uno.newWindow()');
@@ -124,7 +129,7 @@ app.whenReady().then(async () => {
       await win.webContents.executeJavaScript(`
         $('#workspaceDialog').close(); workspaceStarted = true; askConfirm = async () => true;
         $('#collabJoinTab').click();
-        $('#collabName').value = ${JSON.stringify(name)}; $('#collabInvite').value = ${JSON.stringify(code)};
+        $('#collabName').value = ${JSON.stringify(name)}; $('#collabInvite').value = ${JSON.stringify(code.startsWith('IDE2.') ? address + '\n' + code : code)};
         $('#collabInvite').dispatchEvent(new Event('input'));
         $('#collabJoin').click();
       `);
@@ -132,7 +137,7 @@ app.whenReady().then(async () => {
       if (await win.webContents.executeJavaScript('ideCollaboration.active')) throw Error('A localhost invitation joined without explaining its scope');
       await win.webContents.executeJavaScript(`
         const invite = IDECollab.parseInvitation($('#collabInvite').value);
-        $('#collabInvite').value = IDECollab.invitation('http://127.0.0.1:1', invite.room, invite.token);
+        $('#collabInvite').value = invite.shortCode ? 'http://127.0.0.1:1\\nIDE2.' + invite.shortCode : IDECollab.invitation('http://127.0.0.1:1', invite.room, invite.token);
         $('#collabInvite').dispatchEvent(new Event('input'));
         $('#collabJoinServer').value = ${JSON.stringify(address + '/health')};
         $('#collabSamePC').checked = true;

@@ -15,6 +15,8 @@ This setup supports **Ubuntu, Debian, Fedora and Linux Mint**. Windows and Linux
 
 Both PCs must be on the same local network for option 1. Opening the server address in a guest PC’s browser shows a friendly server page on new packages. `/health` works on older packages too.
 
+Updated servers support short guest invitations. The app shows 27-character `IDE2` codes and copies the server address with them. To enable them for an existing session, its owner chooses **Replace guest invitations** after upgrading; previous guest codes are then revoked. Full invitations remain available for older apps, and owner recovery codes stay full length.
+
 `bash setup-mint.sh` still works as a compatibility shortcut and now runs the same cross-distribution setup. The original Mint ZIP download points to the same Linux setup package.
 
 ### Upgrade an existing Mint server
