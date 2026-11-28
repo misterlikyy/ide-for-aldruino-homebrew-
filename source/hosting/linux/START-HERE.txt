@@ -1,0 +1,25 @@
+IDE-beta collaboration server — Ubuntu, Debian, Fedora and Linux Mint
+
+FIRST SETUP
+Extract this whole ZIP. In the extracted folder, right-click → Open in Terminal.
+Run: bash setup-server.sh
+Choose 1 for PCs on the same local network.
+
+SHARE CODE
+Use the displayed "Address for all PCs" in the host app too.
+IDE-beta → Share project → PCs on the same network → Check server.
+Enter the creation key and share the project. Guests join with an invitation.
+Keep the server PC on. No public online server is provided.
+
+NEXT TIME
+Run: bash server.sh
+This opens a menu to check, start, restart or stop the server and show its key.
+CONNECT.txt (created by setup) contains your addresses and an absolute status command.
+From any other folder, type bash, a space, drag server.sh into the terminal, then press Enter.
+
+ALREADY HAVE AN OLDER SERVER?
+Save your project in the app. Extract the new ZIP into the SAME server folder,
+replace the packaged files, and keep .env. Run bash setup-server.sh again.
+Do not create a second server folder or delete the Docker volumes.
+
+The full guide and common fixes are in README.md.

@@ -40,6 +40,11 @@ function createServer(options = {}) {
   const presence = room => broadcast(room, { t: 'people', people: [...room.peers.values()].map(({ id, name, role, cursor }) => ({ id, name, role, cursor })) });
   const reply = (response, code, value) => { response.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); response.end(JSON.stringify(value)); };
   const server = http.createServer(async (request, response) => {
+    if (request.method === 'GET' && request.url.split('?')[0] === '/') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" });
+      return response.end(require('./landing.cjs'));
+    }
     if (request.method === 'GET' && request.url === '/health') return reply(response, 200, { ok: true, service: 'IDE-beta collaboration', protocol: 1 });
     if (request.method !== 'POST' || request.url !== '/api/rooms') return reply(response, 404, { error: 'Not found.' });
     if (createKey && digest(request.headers.authorization || '') !== digest('Bearer ' + createKey)) return reply(response, 401, { error: 'The server creation key is missing or incorrect.' });

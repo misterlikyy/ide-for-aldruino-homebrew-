@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const { readCommand, validateHex } = require('./firmware.cjs');
 const { serverUrl } = require('./collaboration/url.cjs');
+const { checkServer } = require('./collaboration/connection.cjs');
 const { validateProject: validateSharedProject } = require('./collaboration/model.cjs');
 // Keep existing projects, settings, and downloaded upload tools across the rename.
 const startupCheck = process.argv.includes('--smoke-test');
@@ -157,7 +158,7 @@ function uploadHint(out) {
 }
 
 /* ---------- interface updates: a newer index.html can be installed without rebuilding the exe ---------- */
-const API_LEVEL = 4;
+const API_LEVEL = 5;
 const uiDir = () => path.join(app.getPath('userData'), 'ui');
 function meta(file, name) {
   try { const t = fs.readFileSync(file, 'utf8').slice(0, 4000), x = t.match(new RegExp('<meta name="' + name + '" content="(\\d+)"')); return x ? +x[1] : 0; } catch { return 0; }
@@ -335,6 +336,10 @@ ipcMain.handle('cli:compile', async (e, files, fqbn) => {
   }
 });
 
+ipcMain.handle('collab:check', async (event, address) => {
+  try { return await checkServer(address, (url, options) => net.fetch(url, options)); }
+  catch (error) { return { ok: false, error: error.message }; }
+});
 ipcMain.handle('collab:create', async (event, address, project, key) => {
   try {
     validateSharedProject(project);

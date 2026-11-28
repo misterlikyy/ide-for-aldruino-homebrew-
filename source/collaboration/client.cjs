@@ -1,5 +1,6 @@
 const model = require('./model.cjs');
 const { serverUrl } = require('./url.cjs');
+const { addressKind } = require('./connection.cjs');
 const { Y, REMOTE, LOCAL } = model;
 const encode = bytes => { let raw = ''; for (const byte of bytes) raw += String.fromCharCode(byte); return btoa(raw); };
 const decode = text => Uint8Array.from(atob(text), c => c.charCodeAt(0));
@@ -83,4 +84,4 @@ class Session {
   redo() { if (this.role !== 'viewer') this.undoManager?.redo(); }
   close() { this.closed = true; this.ready = false; clearTimeout(this.reconnectTimer); clearTimeout(this.flushTimer); this.socket?.close(); this.undoManager?.destroy(); this.doc?.destroy(); }
 }
-module.exports = { Session, invitation, parseInvitation, serverUrl };
+module.exports = { Session, invitation, parseInvitation, serverUrl, addressKind };

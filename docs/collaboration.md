@@ -4,14 +4,40 @@
 
 > No public online server is provided. Use your own server; option 1 is for your local network.
 
-1. Start your server and note its address and creation key.
-2. Open **Share project** in IDE-beta and create a session.
-3. Copy an **editor** or **viewer** invitation to your friend.
-4. They open **Share project → Join session** and paste the code.
+## Host: share your project
 
-Everyone needs IDE-beta. For local-network mode, use the server PC’s network address, not `localhost`.
+1. [Set up the server](../server/README.md) on a Linux PC. Keep it on and connect both PCs to the same local network.
+2. Open **Share project → PCs on the same network** in IDE-beta.
+3. Enter the **Address for all PCs** from setup or `CONNECT.txt`, for example `http://192.168.1.50:1234`. Use this address on the host PC too.
+4. Choose **Check server**. When it says **Server reachable**, enter your display name and private creation key, then choose **Share this project**.
+5. Copy an **editor** or **viewer** invitation and send it to your collaborator.
 
-On the **server PC itself**, use `http://127.0.0.1:1234` or `http://localhost:1234`. The app also accepts `127.0.0.0` and converts it to `127.0.0.1`. On **another PC**, enter the server’s LAN address, such as `http://192.168.1.50:1234`. Local HTTP is supported; public internet servers require HTTPS.
+The creation key is checked when creating the session. Guests do not need it. To find it again on the server, run `bash server.sh key` in its folder.
+
+## Guest: join the project
+
+1. Open **Share project → Join a project**, enter a display name and paste the invitation under **Join a session**.
+2. Check **Connect to this server**. It should show the host’s LAN address.
+3. Choose **Check invitation server**, then **Join session**. The app backs up your current workspace before opening the shared code.
+
+**Have an older localhost invitation?** Replace **Connect to this server** with the host’s LAN address, then join. The room and access code stay unchanged; this works if the session still exists on that server. You do not need to create another session just to fix its address. For future invitations, the host should create sessions using the LAN address.
+
+## If it does not connect
+
+On the **guest PC**, open the server address followed by `/health`, such as `http://192.168.1.50:1234/health`.
+
+| What you see | What to do |
+| --- | --- |
+| `"ok":true` | The server is reachable from this PC. Check the invitation address. If the app says the invitation expired or is invalid, ask the owner for a current code. |
+| Page will not load | Keep the server PC on; check its LAN IP, the shared network and the host firewall. Run the server status check in the [hosting guide](../source/hosting/linux/README.md#check-or-manage-the-server). |
+| Server page opens but `/health` works only on the host | Check network/firewall access from the guest PC. A healthy Docker container alone does not prove other PCs can reach it. |
+| `404` at the address without `/health` | Older server packages have no homepage. Use `/health`; updating the server adds a friendly homepage. |
+| `No such file or directory` for a server script | Open a terminal in the extracted server folder. Older Mint packages may lack newer scripts; use the fallback commands in the hosting guide. |
+| Health works, but the app keeps reconnecting | Check the exact app error. The invitation must be valid, and the network/proxy must allow the WebSocket connection. Update both apps if needed. |
+
+**Why localhost caused trouble:** `localhost`, `127.0.0.1` and the `127.0.0.0` alias refer to the PC using them. They do not point guests to the host. Choose **Only on this PC** only when the app and server really run on one computer. For internet sharing, configure your own HTTPS server and choose **Over the internet with HTTPS**.
+
+If your host’s LAN IP changes, check `CONNECT.txt` against `hostname -I` or run the server status command again. Enter the current address when joining. A DHCP reservation in your router can keep the host’s address stable.
 
 <details>
 <summary>Permissions, recovery and limits</summary>

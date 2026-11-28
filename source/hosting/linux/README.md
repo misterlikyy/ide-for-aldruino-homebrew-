@@ -8,11 +8,20 @@ This setup supports **Ubuntu, Debian, Fedora and Linux Mint**. Windows and Linux
 
 1. Download and extract the whole [Linux server ZIP](https://github.com/misterlikyy/Homebrew_IDE/releases/download/latest/IDE-beta-collaboration-server-linux.zip).
 2. Open a terminal in the extracted folder containing `compose.yaml`, `Dockerfile` and `setup-server.sh`.
-3. Run `bash setup-server.sh` and choose **1** for your local network. It installs missing dependencies, generates a private creation key, and starts the server. It asks for sudo when needed.
-4. In IDE-beta → **Share project**, enter the displayed server address and creation key, set a display name, then choose **Share this project**.
-5. Send an editor or viewer invitation to the people joining. They paste it into **Share project → Join session**; they do not need the server creation key.
+3. Run `bash setup-server.sh` and choose **1** for your local network. It installs missing dependencies, generates a private creation key, and waits for the server to respond. It asks for sudo when needed.
+4. Wait for **Server is running and responding**. Setup saves public connection details in `CONNECT.txt`. Keep the creation key private.
+5. In IDE-beta → **Share project**, choose **PCs on the same network** and enter the **Address for all PCs**, including on the host PC. Choose **Check server**, enter the creation key and a display name, then choose **Share this project**.
+6. Send an editor or viewer invitation to the people joining. They choose **Share project → Join a project**, paste the invitation, check the displayed server address and join. They do not need the server creation key.
+
+Both PCs must be on the same local network for option 1. Opening the server address in a guest PC’s browser shows a friendly server page on new packages. `/health` works on older packages too.
 
 `bash setup-mint.sh` still works as a compatibility shortcut and now runs the same cross-distribution setup. The original Mint ZIP download points to the same Linux setup package.
+
+### Upgrade an existing Mint server
+
+Save important projects locally in the app. Extract the new server ZIP **into your existing server folder** and replace its packaged files, while keeping `.env`. Rerun `bash setup-server.sh` and choose your current mode. Use the same folder path/name so Docker keeps the same project volumes. This adds the server homepage, menu and status helpers. Older installations can continue serving the updated apps without an immediate server upgrade.
+
+Do not delete the Docker volumes or start in a second server folder when updating. The ZIP does not contain `.env`, so it does not replace your key. Setup keeps existing generated keys.
 
 ## Supported systems and dependencies
 
@@ -51,27 +60,65 @@ sudo firewall-cmd --reload
 
 This mode uses HTTP on your trusted local network. It does not create a public endpoint or connect people on unrelated internet connections.
 
-## Check the server
+## Check or manage the server
 
 From the extracted setup folder:
 
 ```sh
-bash status-server.sh
+bash server.sh
 ```
 
-The `collaboration` service should be **Up / healthy**, followed by:
+Choose **1** to check the server. The menu also offers start, restart, stop and show private creation key. Direct commands work too:
 
-```json
-{"ok":true,"service":"IDE-beta collaboration","protocol":1}
+```sh
+bash server.sh status
+bash server.sh start
+bash server.sh restart
+bash server.sh key
 ```
 
-If Docker says **no configuration file provided**, open a terminal in the folder containing `compose.yaml`, or run the status script using its full path. For recent logs:
+The status check should say **Server is running and responding** and print connection addresses. It checks the container locally; also open the printed `/health` URL on the **guest PC** to verify that PC can reach it. A response with `"ok":true` confirms server access. It does not validate an invitation or guarantee a proxy allows WebSockets.
+
+**Run it from any folder:** setup prints an absolute command and saves it in `CONNECT.txt`. You can also type `bash `, drag `server.sh` from the file manager into the terminal, and press Enter.
+
+### Missing scripts or wrong folder
+
+If you see **No such file or directory**, open the extracted server folder in your file manager, check that it contains `compose.yaml`, and choose **Open in Terminal** there. A folder path containing spaces needs quotes:
+
+```sh
+# Example only: use your actual extracted folder name.
+cd "$HOME/Desktop/ide server"
+ls
+```
+
+Older Mint packages may not contain `status-server.sh` or `server.sh`. Until you update, use these commands **in the folder containing `compose.yaml`**:
+
+```sh
+sudo docker compose ps
+sudo docker compose logs --tail=50 collaboration
+```
+
+The service should be **Up / healthy**. If Docker says **no configuration file provided**, you are not in that folder. To find it:
+
+```sh
+find "$HOME" -type f -name 'compose.yaml' 2>/dev/null
+```
+
+For recent logs on either package:
 
 ```sh
 sudo docker compose logs --tail=100 collaboration
 ```
 
 Finally, create a session and join it from another PC to confirm that edits appear on both.
+
+### Server reachable, but the invitation does not work
+
+Run `hostname -I` on the host to check its LAN address. Use that address, with port 1234, in the host’s **Share project** dialog before creating invitations. Ignore Docker bridge addresses such as `172.17.0.1` when you have a normal Wi-Fi/Ethernet address.
+
+If an existing invitation uses `localhost` or `127.0.0.1`, the guest can replace **Connect to this server** with the host LAN address in the updated app. This keeps the room and access token; it works while the original session remains available. A new invitation is needed if the owner replaced codes, the session ended or it expired.
+
+Older servers return **404** at `/`; use `/health`. New servers show a homepage with a copyable address and next steps. Localhost checks work only on the PC making the check; a guest must test the host’s LAN address. [App sharing walkthrough and troubleshooting](../../../docs/collaboration.md).
 
 ## Optional internet hosting
 

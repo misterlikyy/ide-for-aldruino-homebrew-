@@ -99,6 +99,17 @@ app.whenReady().then(async () => {
     const address = 'http://127.0.0.0:' + service.server.address().port;
     await editor.webContents.executeJavaScript(`
       $('#collabName').value = 'Owner'; $('#collabServer').value = ${JSON.stringify(address)};
+      $('#collabMode').value = 'network'; $('#collabCreate').click();
+    `);
+    await until(editor, "$('#collabError').textContent.includes('host’s LAN address') && !$('#collabCreate').disabled");
+    if (service.rooms.size) throw Error('Localhost invitation was created in cross-PC mode');
+    await editor.webContents.executeJavaScript("$('#collabMode').value = 'computer'; $('#collabCheck').click();");
+    await until(editor, "$('#collabCheckStatus').textContent.includes('Server reachable') && !$('#collabCheck').disabled");
+    await editor.webContents.executeJavaScript(`
+      $('#collabKey').value = 'wrong-key'; $('#collabCreate').click();
+    `);
+    await until(editor, "$('#collabError').textContent.includes('creation key') && !$('#collabCreate').disabled");
+    await editor.webContents.executeJavaScript(`
       $('#collabKey').value = 'ui-test-key'; $('#collabCreate').click();
     `);
     await until(editor, 'ideCollaboration.session?.status === "connected"');
@@ -112,7 +123,19 @@ app.whenReady().then(async () => {
       await until(win, 'typeof ideCollaboration !== "undefined"');
       await win.webContents.executeJavaScript(`
         $('#workspaceDialog').close(); workspaceStarted = true; askConfirm = async () => true;
+        $('#collabJoinTab').click();
         $('#collabName').value = ${JSON.stringify(name)}; $('#collabInvite').value = ${JSON.stringify(code)};
+        $('#collabInvite').dispatchEvent(new Event('input'));
+        $('#collabJoin').click();
+      `);
+      await until(win, "$('#collabError').textContent.includes('localhost') && !$('#collabJoin').disabled");
+      if (await win.webContents.executeJavaScript('ideCollaboration.active')) throw Error('A localhost invitation joined without explaining its scope');
+      await win.webContents.executeJavaScript(`
+        const invite = IDECollab.parseInvitation($('#collabInvite').value);
+        $('#collabInvite').value = IDECollab.invitation('http://127.0.0.1:1', invite.room, invite.token);
+        $('#collabInvite').dispatchEvent(new Event('input'));
+        $('#collabJoinServer').value = ${JSON.stringify(address + '/health')};
+        $('#collabSamePC').checked = true;
         $('#collabJoin').click();
       `);
       await until(win, 'ideCollaboration.session?.status === "connected"');
@@ -155,6 +178,15 @@ app.whenReady().then(async () => {
     await until(guest, '!ideCollaboration.active');
     await until(viewer, '!ideCollaboration.active');
     await service.close();
+    if (process.env.IDE_CAPTURE_COLLAB) {
+      await editor.webContents.executeJavaScript("$('#collabCreateTab').click(); $('#collabMode').value = 'network'; $('#collabMode').dispatchEvent(new Event('change')); $('#collabServer').value = 'http://192.168.1.50:1234'; $('#collabKey').value = ''; $('#collabDialog').scrollTop = 0;");
+      await editor.webContents.capturePage();
+      await wait(100);
+      fs.writeFileSync(path.join(root, 'dist', 'sharing-host-preview.png'), (await editor.webContents.capturePage()).toPNG());
+      await editor.webContents.executeJavaScript("$('#collabJoinTab').click(); $('#collabInvite').value = IDECollab.invitation('http://127.0.0.1:1234', '01234567-89ab-cdef-0123-456789abcdef', 'a'.repeat(43)); $('#collabInvite').dispatchEvent(new Event('input')); $('#collabDialog').scrollTop = 0;");
+      await wait(100);
+      fs.writeFileSync(path.join(root, 'dist', 'sharing-join-preview.png'), (await editor.webContents.capturePage()).toPNG());
+    }
     if (errors.length) throw new Error(errors.join('\n'));
     clearTimeout(timeout);
     console.log(JSON.stringify({ ok: true, platform: process.platform, projectSaveOpen: true, visualization: true, firmwareViewer: true, serialReconnect: true, collaboration: true, bundledFont: true }));

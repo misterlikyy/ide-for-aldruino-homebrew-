@@ -11,6 +11,7 @@ const docker = args => execFileSync('docker', args, { encoding: 'utf8', stdio: [
     let ready = false;
     for (let i = 0; i < 100; i++) { try { ready = (await fetch(address + '/health')).ok; } catch {} if (ready) break; await new Promise(resolve => setTimeout(resolve, 100)); }
     if (!ready) throw Error('The production server container did not become ready');
+    const home = await fetch(address); if (!home.ok || !(await home.text()).includes('Server is running')) throw Error('Server homepage is unavailable');
     const response = await fetch(address + '/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ name: 'Container check', files: [{ name: 'main.ino', text: 'void setup() {}\nvoid loop() {}' }] }) });
     if (!response.ok) throw Error('The production container could not create a session');
     const room = await response.json();

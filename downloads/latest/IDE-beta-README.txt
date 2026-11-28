@@ -2,13 +2,15 @@ IDE-beta — Windows and Linux
 
 Extract the ZIP and run IDE-beta.exe.
 
-Beta 12 fixes local HTTP server addresses (including 127.0.0.0), uses native Linux serial monitoring, and retries the uploaded board's connection while it restarts. The Dashboard marks retained readings when disconnected. Use http://127.0.0.1:1234 on the server PC, or the server's LAN IP on another PC.
+Beta 13 simplifies sharing: choose same-network, same-PC or HTTPS internet mode, check the server in the app, and correct the server address on older invitations without changing their room/access code. Localhost invitations clearly explain that they work only on the PC using them. For sharing across PCs, use the host's LAN address in the host app too. The server package now has a friendly homepage, a server.sh menu, a readiness check and CONNECT.txt with public connection details. New scripts work with folder paths containing spaces; older Mint packages can be upgraded in their existing folder while keeping .env and Docker volumes.
+
+The Linux app uses native serial monitoring and retries the uploaded board's connection while it restarts. The Dashboard marks retained readings when disconnected.
 
 Public server status: there is no public online collaboration server operated by this project. Collaboration uses your own local or self-hosted server.
 
 Live collaboration: use Share project to create a private code session or join with an IDE1 invitation. The IDE-beta-collaboration-server-linux.zip setup supports Ubuntu, Debian, Fedora and Linux Mint. Extract it and run bash setup-server.sh. Option 1 (the default) is for PCs on the same local network and does not configure internet access. Optional internet mode needs your own domain, DNS and router setup. The original Mint ZIP and setup-mint.sh remain compatibility shortcuts.
 
-To check your server, open a terminal in its extracted folder and run bash status-server.sh. Keep using the same folder and .env when updating so Docker retains your existing shared projects.
+To manage your server, open a terminal in its extracted folder and run bash server.sh for a menu, or bash server.sh status for connection addresses. Setup saves an absolute status command in CONNECT.txt. Older Mint packages without the helper can use sudo docker compose ps from their compose.yaml folder. Keep using the same folder and .env when updating so Docker retains your existing shared projects. Guest PCs can test access by opening the host's LAN address followed by /health in a browser.
 
 The owner can issue editor/viewer invitations, replace guest invitations, and end a session. Keep the owner recovery code private. Codes are not saved in .ideproj files. Edits merge, participants and cursors are shown, and an open app reconnects after temporary disconnection. Local drafts can be recovered from Share project. This first version shares code/files; layouts, visualization, serial data and Arduino controls stay local.
 

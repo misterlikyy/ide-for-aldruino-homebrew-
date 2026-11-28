@@ -45,12 +45,17 @@ if [ "$mode" = 2 ]; then
   echo 'Point the domain DNS at your public IP and forward TCP ports 80 and 443 to this Linux PC. The README explains this setup.'
 else
   as_root docker compose up -d --build
-  local_ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}' || true)
-  if [ -z "$local_ip" ]; then local_ip=$(hostname -I | awk '{print $1}'); fi
-  echo "Server address for other PCs: http://$local_ip:1234"
   echo 'Local-network mode selected. This mode does not configure an internet endpoint.'
   echo 'If a firewall is enabled, allow TCP 1234 from your local subnet. See README for UFW and Fedora firewalld instructions.'
+fi
+. ./server-addresses.sh
+show_connection_info > CONNECT.txt
+echo 'Connection addresses and the status command are saved in CONNECT.txt. This file does not contain your creation key.'
+if ! bash ./status-server.sh --wait; then
+  echo 'Setup saved your settings, but the server did not become ready. Use bash server.sh status and check the logs above.' >&2
+  exit 1
 fi
 echo "Server creation key (keep private; enter it only when creating sessions): $key"
 echo 'Open IDE-beta → Share project, enter the address, your display name and creation key.'
 echo 'Keep this PC powered on while collaborating. Shared projects are stored in a persistent Docker volume.'
+printf 'Next time, open the server menu from any folder: bash %q\n' "$PWD/server.sh"

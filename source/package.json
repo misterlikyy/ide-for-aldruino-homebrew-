@@ -1,6 +1,6 @@
 {
   "name": "ide-beta",
-  "version": "1.0.0-beta.12",
+  "version": "1.0.0-beta.13",
   "description": "Desktop dashboard for Arduino Uno",
   "main": "main.js",
   "scripts": {

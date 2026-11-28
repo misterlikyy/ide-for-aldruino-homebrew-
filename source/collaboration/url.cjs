@@ -1,5 +1,6 @@
 function serverUrl(value) {
   const url = new URL(String(value).trim());
+  if (url.pathname === '/health' || url.pathname === '/health/') url.pathname = '/';
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/' || !['http:', 'https:'].includes(url.protocol)) throw Error('Use the server address only, for example https://collab.example.com.');
   // These common bind/loopback aliases should reach a normally bound localhost server.
   if (url.hostname === '127.0.0.0' || url.hostname === '0.0.0.0') url.hostname = '127.0.0.1';
