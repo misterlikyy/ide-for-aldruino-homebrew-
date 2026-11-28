@@ -1,4 +1,5 @@
 const Y = require('yjs');
+const { validateCircuit, circuitSnapshot, syncCircuit } = require('./circuit.cjs');
 const LOCAL = 'local-edit';
 const REMOTE = 'network';
 const FILE_NAME = /^[A-Za-z0-9_][\w.-]*\.(ino|h|hpp|cpp|c)$/i;
@@ -15,6 +16,7 @@ function validateProject(value) {
     if (bytes > LIMITS.fileBytes) throw Error('A shared file is larger than 256 KB.');
   }
   if (size > LIMITS.projectBytes) throw Error('The shared project is larger than 1 MB.');
+  if (value.circuit !== undefined) validateCircuit(value.circuit);
   return value;
 }
 
@@ -30,7 +32,7 @@ function snapshot(doc) {
     used.add(name.toLowerCase());
     return { id, name, text: entry.get('text').toString() };
   });
-  return validateProject({ name: meta.get('name'), files: result });
+  return validateProject({ name: meta.get('name'), files: result, circuit: circuitSnapshot(doc) });
 }
 
 function createDocument(value) {
@@ -38,6 +40,7 @@ function createDocument(value) {
   const doc = new Y.Doc();
   doc.transact(() => {
     doc.getMap('project').set('name', value.name.trim());
+    syncCircuit(doc, value.circuit || { parts: [] });
     value.files.forEach((file, index) => {
       const entry = new Y.Map(); entry.set('name', file.name); entry.set('text', new Y.Text(file.text));
       doc.getMap('files').set('initial-' + String(index).padStart(3, '0'), entry);
@@ -65,6 +68,7 @@ function syncProject(doc, value) {
   validateProject(value);
   const files = doc.getMap('files'), shown = new Map(snapshot(doc).files.map(file => [file.id, file]));
   doc.transact(() => {
+    if (value.circuit !== undefined) syncCircuit(doc, value.circuit);
     if (doc.getMap('project').get('name') !== value.name) doc.getMap('project').set('name', value.name);
     const keep = new Set();
     for (const file of value.files) {

@@ -164,6 +164,7 @@ app.whenReady().then(async () => {
       $('#code').value += 'forbidden edit'; onEdit();
       if (JSON.stringify(project.files) !== before) throw new Error('Viewer changed shared code');
     `);
+    await require('./smoke-hardware.cjs')(editor, guest, viewer, ipcMain);
     await editor.webContents.executeJavaScript('ideCollaboration.session.delay = 1000; ideCollaboration.session.socket.close();');
     await until(editor, '!ideCollaboration.session.ready');
     await editor.webContents.executeJavaScript("if (!$('#collabEnd').disabled || !$('#collabRotate').disabled) throw new Error('Offline session controls should be disabled');");
@@ -194,7 +195,7 @@ app.whenReady().then(async () => {
     }
     if (errors.length) throw new Error(errors.join('\n'));
     clearTimeout(timeout);
-    console.log(JSON.stringify({ ok: true, platform: process.platform, projectSaveOpen: true, visualization: true, firmwareViewer: true, serialReconnect: true, collaboration: true, bundledFont: true }));
+    console.log(JSON.stringify({ ok: true, platform: process.platform, projectSaveOpen: true, visualization: true, firmwareViewer: true, serialReconnect: true, collaboration: true, sharedHardware: true, sharedVisualization: true, bundledFont: true }));
     app.exit(0);
   } catch (error) {
     clearTimeout(timeout);

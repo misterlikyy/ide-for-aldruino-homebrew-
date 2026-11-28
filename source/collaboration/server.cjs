@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const { Y, LIMITS, snapshot, createDocument } = require('./model.cjs');
+const { HardwareRelay } = require('./hardware.cjs');
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const token = () => crypto.randomBytes(32).toString('base64url');
 // The first 22 random base64url characters retain 132 bits of entropy.
@@ -43,6 +44,7 @@ function createServer(options = {}) {
   const send = (socket, value) => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value)); };
   const broadcast = (room, value, except) => { for (const peer of room.peers.values()) if (peer.socket !== except) send(peer.socket, value); };
   const presence = room => broadcast(room, { t: 'people', people: [...room.peers.values()].map(({ id, name, role, cursor }) => ({ id, name, role, cursor })) });
+  const hardware = room => room.hardware || (room.hardware = new HardwareRelay({ send, broadcast: message => broadcast(room, message), project: () => snapshot(room.doc), peers: room.peers }));
   const reply = (response, code, value) => { response.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); response.end(JSON.stringify(value)); };
   const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url.split('?')[0] === '/') {
@@ -104,9 +106,10 @@ function createServer(options = {}) {
           if (room.peers.size >= 12) return socket.close(4429, 'This session is full');
           peer = { id: crypto.randomUUID(), name: typeof message.name === 'string' ? message.name.trim().slice(0, 40) || 'Guest' : 'Guest', role, credentialHash: hash, socket, cursor: null };
           room.peers.set(peer.id, peer); clearTimeout(authTimeout);
-          send(socket, { t: 'welcome', id: peer.id, role, shortInvitations: hasShortCodes(room), state: encode(room.doc) }); presence(room); return;
+          send(socket, { t: 'welcome', id: peer.id, role, sharedHardware: true, sharedVisualization: true, shortInvitations: hasShortCodes(room), state: encode(room.doc) }); hardware(room).welcome(peer); presence(room); return;
         }
         if (!rooms.has(room.id) || !hasCredential(room, peer.role, peer.credentialHash)) return socket.close(4403, 'Session access was revoked');
+        if (hardware(room).handle(peer, message)) return;
         if (message.t === 'update') {
           if (peer.role === 'viewer') return send(socket, { t: 'error', message: 'Viewer access does not allow edits.' });
           const candidate = new Y.Doc();
@@ -137,7 +140,7 @@ function createServer(options = {}) {
         }
       } catch { send(socket, { t: 'error', message: 'The server could not process this request.' }); }
     });
-    socket.on('close', () => { clearTimeout(authTimeout); if (peer) { room.peers.delete(peer.id); presence(room); } });
+    socket.on('close', () => { clearTimeout(authTimeout); if (peer) { hardware(room).leave(peer); room.peers.delete(peer.id); presence(room); } });
     socket.isAlive = true;
     socket.on('pong', () => { socket.isAlive = true; });
   });

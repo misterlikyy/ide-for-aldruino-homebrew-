@@ -1,4 +1,4 @@
-/* Online code sessions. Hardware and window layouts remain local. */
+/* Shared code and visualization; opt-in Arduino hosting uses the session relay. */
 (() => {
   if (VIEW) { $('#shareProject').hidden = true; return; }
   const style = document.createElement('style');
@@ -21,7 +21,7 @@
   dialog.setAttribute('aria-labelledby', 'collabHeading');
   dialog.innerHTML = `
     <h2 id="collabHeading">Share project</h2>
-    <p class="collab-note">Work on code together across PCs. Each person keeps their own layout and Arduino controls. Circuit visualization and serial data are local in this first version.</p>
+    <p class="collab-note">Work on code and visualization together. The owner can share their Arduino so editors build, upload and use its live Dashboard from another PC.</p>
     <label for="collabName">Your display name</label><input id="collabName" maxlength="40" autocomplete="nickname" placeholder="Your name">
     <div id="collabSetup">
       <div class="collab-switch" aria-label="Share or join"><button id="collabCreateTab" aria-pressed="true">Host a project</button><button id="collabJoinTab" aria-pressed="false">Join a project</button></div>
@@ -45,7 +45,10 @@
     <div id="collabSession" hidden>
       <h3 id="collabState">Connecting…</h3><p class="collab-note" id="collabDetail"></p>
       <ul id="collabPeople" aria-label="Session participants"></ul>
+      <p id="collabHardwareStatus" class="collab-note"></p>
+      <div class="collab-actions"><button data-shared-view="dash">Dashboard</button><button data-shared-view="board">Board</button><button data-shared-view="mon">Monitor</button><button data-shared-view="proj">Visualization</button></div>
       <div id="collabOwner" hidden>
+        <label><input type="checkbox" id="collabHardware"> Share my Arduino with this session’s editors — allow uploads and serial commands on this PC</label>
         <p id="collabInviteHint" class="collab-note"></p>
         <label for="collabShareServer">Server address — included when you copy a short invitation</label><input id="collabShareServer" readonly><button data-copy="collabShareServer">Copy server address</button>
         <label for="collabEditorCode">Editor invitation — can change code</label><input id="collabEditorCode" readonly aria-label="Editor invitation"><button data-copy="collabEditorCode">Copy editor invitation</button>
@@ -71,7 +74,7 @@
     onLocalChange() {
       if (!session || applying || changing) return;
       if (controller.readOnly) return;
-      try { changing = true; session.sync(project); backup(); } catch (e) { backup(); error(e.message); } finally { changing = false; }
+      try { changing = true; session.sync(session.sharedVisualization ? project : { ...project, circuit: undefined }); backup(); } catch (e) { backup(); error(e.message); } finally { changing = false; }
     },
     onCaret() {
       renderCursors(); clearTimeout(presenceTimer);
@@ -83,6 +86,7 @@
     $('#collabSetup').hidden = !!session; $('#collabSession').hidden = !session;
     $('#collabName').disabled = !!session; $('#shareProject').dataset.live = String(!!session);
     $('#code').readOnly = controller.readOnly; $('#newFileBtn').disabled = controller.readOnly;
+    sharedViewReadOnly = controller.readOnly;
     const owner = session?.role === 'owner';
     $('#collabOwner').hidden = !owner; $('#collabRotate').hidden = !owner; $('#collabEnd').hidden = !owner;
     $('#collabRotate').disabled = $('#collabEnd').disabled = !session?.ready;
@@ -127,7 +131,7 @@
     applying = true;
     try {
       if (firstApply) {
-        if (joining) { project.projectPath = ''; project.circuit = { parts: [] }; for (const file of project.files) delete file.path; }
+        if (joining) { project.projectPath = ''; project.circuit = { parts: [] }; resetView(); setBoardCode(null, ''); for (const file of project.files) delete file.path; }
         project.id = session.room; firstApply = false;
       }
       const previous = project.files, activeId = curFile()?.collabId, oldActive = project.active, ta = $('#code');
@@ -137,6 +141,7 @@
       const structureChanged = previous.length !== next.length || previous.some((file, index) => file.name !== next[index]?.name || file.collabId !== next[index]?.collabId);
       const open = project.open.map(name => namesById.get(previous.find(file => file.name === name)?.collabId) || (next.some(file => file.name === name) ? name : '')).filter(Boolean);
       project.files = next; project.name = value.name; project.open = open.length ? [...new Set(open)] : [next[0].name];
+      if (session.sharedVisualization && value.circuit) project.circuit = value.circuit;
       project.active = namesById.get(activeId) || (next.some(file => file.name === oldActive) ? oldActive : project.open[0]);
       if (!project.open.includes(project.active)) project.open.push(project.active);
       const resolved = selection && session.resolve(selection);
@@ -146,6 +151,7 @@
       if (resolved?.file === curFile()?.collabId) ta.setSelectionRange(resolved.start, resolved.end);
       if (focused) ta.focus();
       compileProblems = []; queueLint(); saveProject(); broadcastProject(true); controller.onCaret();
+      if (currentView === 'proj') { projRender(); projPanes(); }
     } finally { applying = false; render(); }
   }
   function start(invite, ownerKeys = {}, isJoin = false) {
@@ -153,9 +159,10 @@
     keys = ownerKeys; people = []; error(''); statusMessage = '';
     session = new IDECollab.Session({ ...invite, name: $('#collabName').value,
       beforeRemote: cursor, onProject: apply, beforeReject: backup,
-      onReady: () => { if (isJoin && session.role === 'owner') keys.owner = invite.token; try { localStorage.setItem('ide.collab-server', session.server); } catch {} render(); }, onPeople: value => { people = value; render(); },
+      onReady: () => { if (isJoin && session.role === 'owner') keys.owner = invite.token; try { localStorage.setItem('ide.collab-server', session.server); } catch {} render(); controller.hardwareReady?.(); }, onPeople: value => { people = value; render(); },
       onInvites: value => { keys = { ...keys, ...value }; render(); },
-      onStatus: (status, message) => { statusMessage = message || ''; render(); },
+      onStatus: (status, message) => { statusMessage = message || ''; if (['offline', 'ended'].includes(status)) controller.hardwareOffline?.(); render(); },
+      onHardware: message => controller.onHardware?.(message),
       onError: error, onEnded: () => { backup(); const ended = statusMessage; leave(); error(ended); }
     });
     render(); session.connect();
@@ -165,7 +172,8 @@
     backup();
   }
   function leave() {
-    backup(); session?.close(); session = null; keys = {}; people = []; clearTimeout(presenceTimer); render(); saveProject();
+    controller.hardwareLeave?.();
+    backup(); session?.close(); session = null; keys = {}; people = []; clearTimeout(presenceTimer); render(); saveProject(); broadcastProject(true);
     $('#collabKey').value = ''; $('#collabInvite').value = ''; for (const id of ['collabOwnerCode', 'collabEditorCode', 'collabViewerCode', 'collabFullEditor', 'collabFullViewer']) $('#' + id).value = '';
   }
   let working = false, previewCode = '';
@@ -233,7 +241,7 @@
     if (needApp()) throw Error('Use the desktop app to create a session.');
     const address = creationAddress(); await checkConnection(address);
     rememberDraft(); localStorage.setItem('ide.collab-server', address);
-    const result = await window.uno.createSession(address, { name: project.name, files: filesPayload() }, $('#collabKey').value);
+    const result = await window.uno.createSession(address, { name: project.name, files: filesPayload(), circuit: project.circuit || { parts: [] } }, $('#collabKey').value);
     $('#collabKey').value = ''; if (!result.ok) throw Error(result.error);
     start({ server: address, room: result.room, token: result.keys.owner }, result.keys);
   });
@@ -245,7 +253,7 @@
       invite = { server: result.server, room: result.room, token: result.token };
     }
     if (!(await askConfirm('Join this shared project on ' + invite.server + '? Your current workspace will be backed up, then the session code will open here.', 'Join session'))) return;
-    rememberDraft(); start(invite, {}, true); $('#collabInvite').value = '';
+    rememberDraft(); await disconnect(); start(invite, {}, true); $('#collabInvite').value = '';
   });
   $('#collabRecover').onclick = () => {
     try { const draft = JSON.parse(localStorage.getItem('ide.collab-recovery.' + WS)); if (!draft) throw Error('No recovered draft is available.'); replaceWorkspace(draft, draft.projectPath); dialog.close(); }
@@ -265,6 +273,11 @@
   }; });
   $('#shareProject').onclick = () => { render(); error(''); if (!dialog.open) dialog.showModal(); };
   $('#collabClose').onclick = () => dialog.close();
+  dialog.querySelectorAll('[data-shared-view]').forEach(button => { button.onclick = () => {
+    const view = button.dataset.sharedView; dialog.close();
+    if (view === 'proj') openVisualization();
+    else { applyWorkspaceViews([...new Set([...(project.visibleViews || ['code']), view])]); show(view); }
+  }; });
   $('#code').addEventListener('scroll', renderCursors);
   $('#code').addEventListener('beforeinput', event => { if (controller.readOnly) event.preventDefault(); });
   $('#code').addEventListener('compositionstart', () => { if (session) session.composing = true; });

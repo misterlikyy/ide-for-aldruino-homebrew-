@@ -36,7 +36,7 @@ class Session {
   setDocument(state) {
     this.undoManager?.destroy(); this.doc?.destroy();
     this.doc = new Y.Doc(); Y.applyUpdate(this.doc, decode(state), REMOTE); model.snapshot(this.doc);
-    this.undoManager = new Y.UndoManager([this.doc.getMap('files'), this.doc.getMap('project')], { trackedOrigins: new Set([LOCAL]), captureTimeout: 400 });
+    this.undoManager = new Y.UndoManager([this.doc.getMap('files'), this.doc.getMap('project'), this.doc.getMap('circuit')], { trackedOrigins: new Set([LOCAL]), captureTimeout: 400 });
     this.doc.on('update', (update, origin) => {
       if (origin === REMOTE || this.role === 'viewer') return;
       this.pending.push(update); this.notify(this.ready ? 'saving' : 'offline', this.ready ? '' : 'Edits are kept locally until reconnection.');
@@ -58,6 +58,7 @@ class Session {
         if (message.t === 'welcome') {
           if (!['owner', 'editor', 'viewer'].includes(message.role)) throw Error('Unknown session role.');
           clearTimeout(timeout); this.id = message.id; this.role = message.role; this.shortInvitations = message.shortInvitations === true; this.ready = true; this.delay = 500;
+          this.sharedHardware = message.sharedHardware === true; this.sharedVisualization = message.sharedVisualization === true;
           const selection = this.options.beforeRemote?.();
           if (!this.doc) this.setDocument(message.state); else Y.applyUpdate(this.doc, decode(message.state), REMOTE);
           this.options.onProject?.(model.snapshot(this.doc), selection); this.options.onReady?.();
@@ -70,6 +71,7 @@ class Session {
         } else if (message.t === 'saved') { this.awaiting.delete(message.seq); this.notify(this.pending.length || this.awaiting.size ? 'saving' : 'connected'); }
         else if (message.t === 'people') { this.people = message.people; this.options.onPeople?.(message.people); }
         else if (message.t === 'invites') { this.shortInvitations = message.shortInvitations === true; this.options.onInvites?.(message.keys); }
+        else if (message.t.startsWith('hardware-')) this.options.onHardware?.(message);
         else if (message.t === 'error') this.options.onError?.(message.message);
         else if (message.t === 'rejected') {
           this.options.beforeReject?.(); this.pending = []; this.awaiting.clear(); this.setDocument(message.state);

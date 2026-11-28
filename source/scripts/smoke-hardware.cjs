@@ -1,0 +1,70 @@
+const { BrowserWindow } = require('electron');
+module.exports = async function (host, editor, viewer, ipcMain) {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  async function until(win, expression) { for (let i = 0; i < 250; i++) { if (await win.webContents.executeJavaScript(expression)) return; await wait(30); } throw Error('Hardware UI timed out: ' + expression); }
+  const native = process.platform === 'linux', address = native ? '/dev/ttyUSB0' : 'COM5';
+  const uploads = [], writes = []; let active = null, finishUpload;
+  const replace = (name, fn) => { ipcMain.removeHandler(name); ipcMain.handle(name, fn); };
+  const owned = event => { if (event.sender.id !== host.webContents.id) throw Error('A guest touched its local upload or serial backend'); };
+  if (native) {
+    replace('serial:native:ports', event => { owned(event); return { ok: true, ports: [{ address, vid: 0x1a86, pid: 0x7523 }] }; });
+    replace('serial:native:open', (event, path, baud, token) => { owned(event); active = token; return { ok: true }; });
+    replace('serial:native:close', (event, token) => { owned(event); if (active === token) active = null; return { ok: true }; });
+    replace('serial:native:write', (event, token, data) => { owned(event); writes.push(Buffer.from(data).toString()); return { ok: true }; });
+  } else await host.webContents.executeJavaScript(`
+    testSerial.sent = [];
+    const originalOpen = testPort.open.bind(testPort);
+    testPort.open = async function(options) { await originalOpen(options); this.writable = new WritableStream({ write: data => { testSerial.sent.push(new TextDecoder().decode(data)); } }); };
+    void 0;
+  `);
+  replace('cli:upload', (event, files) => { owned(event); uploads.push(files); return new Promise(resolve => { finishUpload = resolve; }); });
+  replace('cli:compile', event => { owned(event); return { ok: true }; });
+  await host.webContents.executeJavaScript("ideCollaboration.shareHardware(true)");
+  await until(editor, 'ideCollaboration.hardwareRemote');
+  await editor.webContents.executeJavaScript("$('#code').value += '\\n// requested snapshot'; onEdit(); window.remoteUploadDone = uploadMyCode(); void 0;");
+  for (let i = 0; i < 200 && !uploads.length; i++) await wait(30);
+  if (uploads.length !== 1) throw Error('Remote upload did not execute exactly once on the host');
+  if (!uploads[0].some(f => f.text.includes('requested snapshot'))) throw Error('Host uploaded stale code');
+  await editor.webContents.executeJavaScript("$('#code').value += '\\n// edited after request'; onEdit();");
+  if (uploads[0].some(f => f.text.includes('edited after request'))) throw Error('An active upload changed after it was requested');
+  finishUpload({ ok: true, port: address });
+  const result = await editor.webContents.executeJavaScript('remoteUploadDone');
+  if (!result.ok) throw Error('Guest did not receive the host upload result: ' + result.error);
+  await until(host, 'connected'); await until(editor, 'ideCollaboration.hardwareConnected');
+  const reading = 'DISPLAY:Hello from the host\nPINS:OOOOOOOOOOOOOO:0,0,0,0,0,0:5000:-1,-1,-1,-1,-1,-1\n';
+  if (native) host.webContents.send('serial:native:data', { token: active, kind: 'data', data: new TextEncoder().encode(reading) });
+  else await host.webContents.executeJavaScript(`testSerial.controller.enqueue(new TextEncoder().encode(${JSON.stringify(reading)}))`);
+  for (const win of [host, editor, viewer]) await until(win, "$('#now').textContent.includes('Hello from the host') && stats.pins && P.d[13] === 'O'");
+  await host.webContents.executeJavaScript("addPart('led')");
+  for (const win of [editor, viewer]) await until(win, 'project.circuit.parts.length === 1');
+  async function openView(win, view) {
+    const before = new Set(BrowserWindow.getAllWindows()); await win.webContents.executeJavaScript('popOut(' + JSON.stringify(view) + ')');
+    const child = BrowserWindow.getAllWindows().find(window => !before.has(window));
+    if (!child) throw Error('Shared view did not open');
+    if (child.webContents.isLoading()) await new Promise(resolve => child.webContents.once('did-finish-load', resolve));
+    await until(child, 'typeof project !== "undefined" && project.id === ' + JSON.stringify(await win.webContents.executeJavaScript('project.id')));
+    return child;
+  }
+  const visual = await openView(editor, 'proj');
+  await visual.webContents.executeJavaScript("addPart('button')");
+  for (const win of [host, editor, viewer]) await until(win, 'project.circuit.parts.length === 2');
+  const viewOnly = await openView(viewer, 'proj'); await until(viewOnly, 'sharedViewReadOnly');
+  await viewOnly.webContents.executeJavaScript("addPart('led')");
+  if (await viewOnly.webContents.executeJavaScript('project.circuit.parts.length !== 2')) throw Error('Viewer changed the visualization');
+  const dash = await openView(editor, 'dash');
+  await until(dash, "$('#now').textContent.includes('Hello from the host') && stats.pins");
+  const command = await editor.webContents.executeJavaScript("ideCollaboration.requestHardware('command', 'L1')");
+  if (!command.ok) throw Error('Remote serial command failed: ' + command.error);
+  const sent = native ? writes : await host.webContents.executeJavaScript('testSerial.sent');
+  if (!sent.includes('L1\n')) throw Error('Serial command was not written by the host');
+  if ((await viewer.webContents.executeJavaScript("ideCollaboration.requestHardware('upload')")).ok) throw Error('Viewer requested an upload');
+  replace('cli:upload', event => { owned(event); return { ok: false, error: 'Host compilation error (test)' }; });
+  const failed = await editor.webContents.executeJavaScript('uploadMyCode()');
+  if (failed.ok) throw Error('A failed host upload was reported as successful');
+  await until(editor, "$('#cliOut').textContent.includes('Host compilation error (test)') && !ideCollaboration.hardwareConnected");
+  if (!(await editor.webContents.executeJavaScript("$('#liveState').textContent.includes('last received data')"))) throw Error('Host disconnect did not mark Dashboard data as stale');
+  await host.webContents.executeJavaScript('ideCollaboration.shareHardware(false)'); await until(editor, '!ideCollaboration.hardwareState.enabled');
+  if ((await editor.webContents.executeJavaScript('uploadMyCode()')).ok) throw Error('Upload was accepted after host sharing stopped');
+  await host.webContents.executeJavaScript('disconnect()');
+  for (const child of [visual, viewOnly, dash]) child.destroy();
+};

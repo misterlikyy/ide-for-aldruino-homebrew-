@@ -2,7 +2,7 @@
 
 **Public server status: this project does not operate a public online collaboration server.** Collaboration uses a server you run yourself. The default, option **1**, shares with PCs on your local network and does not configure internet access.
 
-This setup supports **Ubuntu, Debian, Fedora and Linux Mint**. Windows and Linux IDE-beta clients can join the same server. The server PC does not need an Arduino attached; keep it powered on while people collaborate.
+This setup supports **Ubuntu, Debian, Fedora and Linux Mint**. Windows and Linux IDE-beta clients can join the same server. The server PC does not need an Arduino attached; keep it powered on while people collaborate. The session owner can separately share an Arduino attached to their IDE PC, allowing editor uploads and live views through this server. See the [host Arduino walkthrough](../../../docs/collaboration.md#share-the-host-arduino-and-live-views).
 
 ## Set up
 

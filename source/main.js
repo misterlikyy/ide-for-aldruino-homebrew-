@@ -158,7 +158,7 @@ function uploadHint(out) {
 }
 
 /* ---------- interface updates: a newer index.html can be installed without rebuilding the exe ---------- */
-const API_LEVEL = 6;
+const API_LEVEL = 7;
 const uiDir = () => path.join(app.getPath('userData'), 'ui');
 function meta(file, name) {
   try { const t = fs.readFileSync(file, 'utf8').slice(0, 4000), x = t.match(new RegExp('<meta name="' + name + '" content="(\\d+)"')); return x ? +x[1] : 0; } catch { return 0; }
@@ -213,7 +213,7 @@ function createWindow(o) {
     loaded.then(() => {
       // bindings-cpp ships Node-API binaries; verify the packaged driver on both platforms.
       require('serialport').SerialPort;
-      return win.webContents.executeJavaScript("Boolean(window.uno && window.IDESerial && window.IDECollab && window.ideCollaboration && navigator.serial && typeof openWorkspaceSetup === 'function' && document.querySelector('#workspaceDialog').open)");
+      return win.webContents.executeJavaScript("Boolean(window.uno && window.IDESerial && window.IDECollab && window.ideCollaboration?.requestHardware && navigator.serial && typeof openWorkspaceSetup === 'function' && document.querySelector('#workspaceDialog').open)");
     })
       .then(ok => {
         clearTimeout(timeout);
@@ -255,7 +255,7 @@ ipcMain.handle('ui:install', async e => {
   if (build <= meta(path.join(__dirname, 'index.html'), 'ide-build')) return { ok: false, error: 'The built-in interface is already as new as this update (build ' + build + ').' };
   fs.mkdirSync(uiDir(), { recursive: true });
   fs.copyFileSync(f, path.join(uiDir(), 'index.html'));
-  for (const name of ['workspace.js', 'serial-runtime.js', 'collaboration-ui.js', 'collaboration.bundle.js']) {
+  for (const name of ['workspace.js', 'serial-runtime.js', 'collaboration-ui.js', 'collaboration-hardware.js', 'collaboration.bundle.js']) {
     fs.copyFileSync(path.join(__dirname, name), path.join(uiDir(), name));
   }
   fs.mkdirSync(path.join(uiDir(), 'fonts'), { recursive: true });
@@ -351,7 +351,7 @@ ipcMain.handle('collab:check', async (event, address) => {
 ipcMain.handle('collab:create', async (event, address, project, key) => {
   try {
     validateSharedProject(project);
-    const body = { name: project.name, files: project.files.map(file => ({ name: file.name, text: file.text })) };
+    const body = { name: project.name, files: project.files.map(file => ({ name: file.name, text: file.text })), ...(project.circuit ? { circuit: project.circuit } : {}) };
     const response = await net.fetch(serverUrl(address) + '/api/rooms', {
       method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + String(key).slice(0, 256) } : {}) },
       body: JSON.stringify(body), signal: AbortSignal.timeout(20000)

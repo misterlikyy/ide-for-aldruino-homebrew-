@@ -43,12 +43,26 @@ On the **guest PC**, open the server address followed by `/health`, such as `htt
 
 If your host’s LAN IP changes, check `CONNECT.txt` against `hostname -I` or run the server status command again. Enter the current address when joining. A DHCP reservation in your router can keep the host’s address stable.
 
+## Share the host Arduino and live views
+
+Update both apps and the server package first. The **Arduino host is the session owner’s IDE PC**, which can be Windows or Linux. It is separate from the Linux collaboration server; they can run on the same PC or on different PCs.
+
+1. Plug the Arduino into the owner’s PC. Select its board and port there, install its upload tools/libraries if needed, and connect it.
+2. In the owner’s **Share project** session, enable **Share my Arduino with this session’s editors**. This grants editors permission to build/upload on this PC and send Arduino serial commands. Only one owner window can host hardware at a time.
+3. On a guest PC, use **Build** or **Upload** normally. The host compiles and uploads the shared code snapshot from when you requested it. Progress, errors and the result appear in the shared output. The guest does not need a local Arduino or upload tools.
+4. Use **Dashboard**, **Board**, **Monitor** or **Visualization** in Share project to open the views you need. They show the host’s real serial readings, pin reports and last uploaded program. Visualization components, positions and pin assignments are shared with the project; each person keeps their own window layout and zoom.
+5. Editors can send commands in Monitor and connect/disconnect the host’s serial monitor. **Viewers can watch, but cannot upload, send commands or edit the visualization.** Board/port selection, library installation, firmware backup and the hardware self-test stay on the host PC.
+
+The host app must stay open and connected to the session. If sharing stops or a connection is lost, the Dashboard labels retained readings as last received data. Upload requests are not replayed automatically after reconnection. A host upload already in progress may finish, so check the output before requesting another. Simultaneous hardware jobs are refused rather than queued.
+
+The host reconnects its serial monitor after upload. Live data needs a sketch that sends serial output or the app’s automatic Uno readings. Recent serial history and output are relayed for people joining later; live readings and jobs are temporary server memory. The shared code and visualization remain saved with the session. Keep a local project backup as usual.
+
 <details>
 <summary>Permissions, recovery and limits</summary>
 
 Use **Share project** in the top bar to create a private session or join with an invitation code. Editors can work on code and files together, with coloured cursors and participant names. Viewers can read the project. Concurrent edits merge, and an open app reconnects after a temporary connection loss.
 
-The owner gets separate editor, viewer, and private owner-recovery codes, and can replace guest invitations or end the session. Code is saved on the collaboration server; each person keeps their own open tabs, layout, visualization, and Arduino controls. The first version shares **code and files**, not circuit diagrams or serial data. It does not let another user upload to your board or send it commands.
+The owner gets separate editor, viewer, and private owner-recovery codes, and can replace guest invitations or end the session. Code and visualization are saved on the collaboration server. Each person keeps their own open tabs, layout and zoom. Host Arduino access is off until the owner enables it and is limited to the connected session’s editors; viewers remain read-only.
 
 **Public server status: there is currently no public online collaboration server operated by this project.** Collaboration uses your own server. The default setup, option **1**, is for PCs on the same local network; it does not configure internet access.
 
